@@ -1493,20 +1493,23 @@ class FabrikWorker
 			if ($usercol != '')
 			{
 				$usercol = FabrikString::safeColNameToArrayKey($usercol);
-				if (!array_key_exists($usercol, $row))
+				// $$$thm was array_key_exists, but that does not support subarrays
+				if (FArrayHelper::getNestedKeyExists($row, $usercol))
 				{
 					return false;
 				}
 				else
 				{
-					if (array_key_exists($usercol . '_raw', $row))
+					// $$$thm was array_key_exists, but that does not support subarrays
+					if (FArrayHelper::getNestedKeyExists($row, $usercol . '_raw'))
 					{
 						$usercol .= '_raw';
 					}
 					$myid = $user->get('id');
 
 					// -1 for menu items that link to their own records
-					$usercol_val = is_array($row) ? $row[$usercol] : $row->$usercol;
+					// $$$thm was array_key_exists, but that does not support subarrays
+					$usercol_val = is_array($row) ? FArrayHelper::getNestedValue($row,$usercol) : $row->$usercol;
 					if (empty($usercol_val) && empty($myid))
 					{
 						return false;

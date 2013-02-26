@@ -54,6 +54,34 @@ class FArrayHelper extends JArrayHelper
 	}
 
 	/**
+	 * Get key existance from a nested array  $$$thm
+	 *
+	 * @param   array   $array    to search
+	 * @param   string  $key      search key
+	 *
+	 *  @return  boolean
+	 */
+
+	public static function getNestedKeyExists($array, $key)
+	{
+		if (array_key_exists($key, $arr))
+		{
+			return true;
+		}
+		else
+		{
+			foreach ($array as $arr)
+			{
+				if (array_key_exists($key, $arr))
+				{
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * update the data that gets posted via the form and stored by the form
 	 * model. Used in elements to modify posted data see fabrikfileupload
 	 *
