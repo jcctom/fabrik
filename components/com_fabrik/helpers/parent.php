@@ -1508,7 +1508,7 @@ class FabrikWorker
 					$myid = $user->get('id');
 
 					// -1 for menu items that link to their own records
-					// $$$thm was array_key_exists, but that does not support subarrays
+					// $$$thm was $row[$usercol] - now using getNestedValue to get values from subarray keys
 					$usercol_val = is_array($row) ? FArrayHelper::getNestedValue($row,$usercol) : $row->$usercol;
 					if (empty($usercol_val) && empty($myid))
 					{
