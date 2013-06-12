@@ -20,9 +20,10 @@ require_once COM_FABRIK_FRONTEND . '/models/visualization.php';
  *
  * @package     Joomla.Plugin
  * @subpackage  Fabrik.visualization.fusionchart
+ * @since       3.0
  */
 
-class plgFabrik_VisualizationFusionchart extends FabrikPlugin
+class PlgFabrik_VisualizationFusionchart extends FabrikPlugin
 {
 
 }

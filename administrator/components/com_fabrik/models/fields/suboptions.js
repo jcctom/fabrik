@@ -10,7 +10,6 @@ var Suboptions = new Class({
 		this.setOptions(options);
 		this.counter = 0;
 		this.name = name;
-		this.clickRemoveSubElement = this.removeSubElement.bindWithEvent(this);
 		document.id('addSuboption').addEvent('click', this.addOption.bindWithEvent(this));
 		this.options.sub_values.each(function (v, x) {
 			var chx = this.options.sub_initial_selection.indexOf(v) === -1 ? '' : "checked='checked'";
@@ -22,7 +21,7 @@ var Suboptions = new Class({
 		}
 		// $$$ rob - could probably do this better with firing an event from the main element page but for now this will do
 		Joomla.submitbutton = function (pressbutton) {
-			if (!this.onSave()) {
+			if (pressbutton !== 'element.cancel' && !this.onSave()) {
 				return false;
 			}
 			Joomla.submitform(pressbutton);
@@ -95,7 +94,9 @@ var Suboptions = new Class({
 		} else {
 			li.inject(document.id('sub_subElementBody'));
 		}
-		document.id('sub_delete_' + this.counter).addEvent('click', this.clickRemoveSubElement);
+		document.id('sub_delete_' + this.counter).addEvent('click', function (e) {
+			this.removeSubElement(e);
+		}.bind(this));
 		
 		if (!this.sortable) {
 			this.sortable = new Sortables('sub_subElementBody', {'handle': '.subhandle'});
@@ -106,16 +107,23 @@ var Suboptions = new Class({
 	},
 	
 	onSave: function () {
-		var values = []; 
-		var ret = true;
-		var intial_selection = [];
-		$$('.sub_values').each(function (dd) {
-			if (dd.value === '') {
-				alert(Joomla.JText._('COM_FABRIK_SUBOPTS_VALUES_ERROR'));
-				ret = false;
-			}
-			values.push(dd.value);
-		});
+		var values = [],
+		ret = true,
+		intial_selection = [],
+		evalPop = document.id('jform_params_dropdown_populate'),
+		evalAdded = false;
+		if (typeOf(evalPop) !== 'null' && evalPop.get('value') !== '') {
+			evalAdded = true;
+		}
+		if (!evalAdded) {
+			$$('.sub_values').each(function (dd) {
+				if (dd.value === '') {
+					alert(Joomla.JText._('COM_FABRIK_SUBOPTS_VALUES_ERROR'));
+					ret = false;
+				}
+				values.push(dd.value);
+			});
+		}
 		$$('.sub_initial_selection').each(function (dd, c) {
 			dd.value = values[c];
 		});

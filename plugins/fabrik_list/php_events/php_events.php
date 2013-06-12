@@ -20,7 +20,7 @@ require_once COM_FABRIK_FRONTEND . '/models/plugin-list.php';
  * @since       3.0
  */
 
-class plgFabrik_ListPhp_Events extends plgFabrik_List
+class PlgFabrik_ListPhp_Events extends PlgFabrik_List
 {
 	/**
 	 * onFiltersGot method - run after the list has created filters
@@ -174,6 +174,11 @@ class plgFabrik_ListPhp_Events extends plgFabrik_List
 	public function onLoadJavascriptInstance($params, $model, $args)
 	{
 		return true;
+	}
+
+	public function onBuildQueryWhere($params, $model)
+	{
+		return $this->doEvaluate($params->get('list_phpevents_onbuildquerywhere'), $model);
 	}
 
 	/**

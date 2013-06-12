@@ -3,7 +3,7 @@
  */
 
 /*jshint mootools: true */
-/*global Fabrik:true, fconsole:true, Joomla:true, CloneObject:true, $A:true, $H:true,unescape:true,Asset:true */
+/*global Fabrik:true, fconsole:true, Joomla:true, CloneObject:true, $H:true,unescape:true,Asset:true */
 
 var FbElement =  new Class({
 	
@@ -13,6 +13,7 @@ var FbElement =  new Class({
 		element: null,
 		defaultVal: '',
 		value: '',
+		label: '',
 		editable: false,
 		isJoin: false,
 		joinId: 0
@@ -32,6 +33,14 @@ var FbElement =  new Class({
 		this.events = $H({}); // was changeEvents
 		this.setOptions(options);
 		return this.setElement();
+	},
+	
+	/**
+	 * Called when form closed in ajax window
+	 * Should remove any events added to Window or Fabrik
+	 */
+	destroy: function () {
+		
 	},
 	
 	setElement: function () {
@@ -58,15 +67,22 @@ var FbElement =  new Class({
 	 * @return  string
 	 */
 	getFormElementsKey: function (elId) {
+		this.baseElementId = elId;
 		return elId;
 	},
 	
 	attachedToForm: function ()
 	{
 		this.setElement();
-		this.alertImage = new Asset.image(this.form.options.images.alert);
-		this.alertImage.setStyle('cursor', 'pointer');
-		this.successImage = new Asset.image(this.form.options.images.action_check);
+		if (Fabrik.bootstrapped) {
+			this.alertImage = new Element('i.icon-warning');
+			this.successImage = new Element('i.icon-checkmark', {'styles': {'color': 'green'}});			
+		} else {
+			this.alertImage = new Asset.image(this.form.options.images.alert);
+			this.alertImage.setStyle('cursor', 'pointer');
+			this.successImage = new Asset.image(this.form.options.images.action_check);
+		}
+		
 		this.loadingImage = new Asset.image(this.form.options.images.ajax_loader);
 		//put ini code in here that can't be put in initialize()
 		// generally any code that needs to refer to  this.form, which
@@ -77,13 +93,15 @@ var FbElement =  new Class({
 	fireEvents: function (evnts) {
 		if (this.hasSubElements()) {
 			this._getSubElements().each(function (el) {
-				$A(evnts).each(function (e) {
+				Array.from(evnts).each(function (e) {
 					el.fireEvent(e);
 				}.bind(this));
 			}.bind(this));
 		} else {
-			$A(evnts).each(function (e) {
-				this.element.fireEvent(e);
+			Array.from(evnts).each(function (e) {
+				if (this.element) {
+					this.element.fireEvent(e);
+				}
 			}.bind(this));
 		}
 	},
@@ -173,7 +191,7 @@ var FbElement =  new Class({
 	
 	addNewEventAux: function (action, js) {
 		this.element.addEvent(action, function (e) {
-			e.stop();
+			// Don't stop event - means fx's onchange events wouldnt fire.
 			typeOf(js) === 'function' ? js.delay(0, this, this) : eval(js);
 		}.bind(this));
 	},
@@ -194,6 +212,11 @@ var FbElement =  new Class({
 				this.addNewEventAux(action, js);
 			}
 		}
+	},
+	
+	// Alais to addNewEvent.
+	addEvent: function (action, js) {
+		this.addNewEvent(action, js);
 	},
 	
 	validate: function () {},
@@ -218,6 +241,10 @@ var FbElement =  new Class({
 		document.id(this.options.element + '_additions').value = s;
 	},
 	
+	getLabel: function () {
+		return this.options.label;
+	},
+	
 	//below functions can override in plugin element classes
 	
 	update: function (val) {
@@ -229,6 +256,11 @@ var FbElement =  new Class({
 				this.element.innerHTML = val;
 			}
 		}
+	},
+	
+	// Alias to update()
+	set: function (val) {
+		this.update(val);
 	},
 	
 	getValue: function () {
@@ -304,7 +336,7 @@ var FbElement =  new Class({
 	},
 	
 	/**
-	 * get the fx to fade up/down element validation feedback text
+	 * Get the fx to fade up/down element validation feedback text
 	 */
 	getValidationFx: function () {
 		if (!this.validationFX) {
@@ -314,7 +346,7 @@ var FbElement =  new Class({
 	},
 	
 	setErrorMessage: function (msg, classname) {
-		var a;
+		var a, m;
 		var classes = ['fabrikValidating', 'fabrikError', 'fabrikSuccess'];
 		var container = this.getContainer();
 		if (container === false) {
@@ -330,18 +362,40 @@ var FbElement =  new Class({
 		});
 		switch (classname) {
 		case 'fabrikError':
-			a = new Element('a', {'href': '#', 'title': msg, 'events': {
-				'click': function (e) {
-					e.stop();
-				}
-			}}).adopt(this.alertImage);
+			if (Fabrik.bootstrapped) {
+				m = new Element('div').set('html', msg).getChildren()[0];
+				a = new Element('div').adopt([this.alertImage, m]);
+			} else {
+				a = new Element('a', {'href': '#', 'title': msg, 'events': {
+					'click': function (e) {
+						e.stop();
+					}
+				}}).adopt(this.alertImage);
+				
+				Fabrik.tips.attach(a);
+			}
 			errorElements[0].adopt(a);
-			Fabrik.tips.attach(a);
+			
+			// If tmpl has additional error message divs (e.g labels above) then set html msg there
+			if (errorElements.length > 1) {
+				for (i = 1; i < errorElements.length; i ++) {
+					errorElements[i].set('html', msg);
+				}
+			}
+			
+			container.removeClass('alert-success').removeClass('alert-info').addClass('alert-error');
 			break;
 		case 'fabrikSuccess':
+			container.addClass('alert-success').removeClass('alert-info').removeClass('alert-error');
 			errorElements[0].adopt(this.successImage);
+			var delFn = function () {
+				errorElements[0].addClass('fabrikHide');
+				container.removeClass('alert-success');
+			};
+			delFn.delay(700);
 			break;
 		case 'fabrikValidating':
+			container.removeClass('alert-success').addClass('alert-info').removeClass('alert-error');
 			errorElements[0].adopt(this.loadingImage);
 			break;
 		}
@@ -364,12 +418,13 @@ var FbElement =  new Class({
 			fx.start({
 				'opacity': 1
 			}).chain(function () {
-				//only fade out if its still the success message
+				// Only fade out if its still the success message
 				if (container.hasClass('fabrikSuccess')) {
 					container.removeClass('fabrikSuccess');
 					this.start.delay(700, this, {
 						'opacity': 0,
 						'onComplete': function () {
+							container.addClass('success').removeClass('error');
 							parent.updateMainError();
 							classes.each(function (c) {
 								container.removeClass(c);
@@ -429,7 +484,7 @@ var FbElement =  new Class({
 				suffixFound = true;
 			}
 		}
-		var bits = $A(n.split('_'));
+		var bits = Array.from(n.split('_'));
 		var i = bits.getLast();
 		if (typeOf(i.toInt()) === 'null') {
 			return bits.join('_');
@@ -496,6 +551,27 @@ var FbElement =  new Class({
 	select: function () {},
 	focus: function () {},
 	
+	hide: function () {
+		var c = this.getContainer();
+		if (c) {
+			c.hide();
+		}
+	},
+	
+	show: function () {
+		var c = this.getContainer();
+		if (c) {
+			c.show();
+		}
+	},
+	
+	toggle: function () {
+		var c = this.getContainer();
+		if (c) {
+			c.toggle();
+		}
+	},
+	
 	/**
 	 * Used to find element when form clones a group
 	 * WYSIWYG text editor needs to return something specific as options.element has to use name 
@@ -537,8 +613,12 @@ var FbFileElement = new Class({
 		
 	watchAjaxFolderLinks: function ()
 	{
-		this.folderdiv.getElements('a').addEvent('click', this.browseFolders.bindWithEvent(this));
-		this.breadcrumbs.getElements('a').addEvent('click', this.useBreadcrumbs.bindWithEvent(this));
+		this.folderdiv.getElements('a').addEvent('click', function (e) {
+			this.browseFolders(e);
+		}.bind(this));
+		this.breadcrumbs.getElements('a').addEvent('click', function (e) {
+			this.useBreadcrumbs(e);
+		}.bind(this));
 	},
 	
 		

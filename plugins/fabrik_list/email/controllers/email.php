@@ -2,8 +2,8 @@
 /**
  * Email list plug-in Controller
  *
- * @package     Joomla
- * @subpackage  Fabrik
+ * @package     Joomla.Plugin
+ * @subpackage  Fabrik.list.email
  * @copyright   Copyright (C) 2005 Fabrik. All rights reserved.
  * @license     http://www.gnu.org/copyleft/gpl.html GNU/GPL, see LICENSE.php
  */
@@ -19,11 +19,11 @@ require_once COM_FABRIK_FRONTEND . '/helpers/string.php';
 /**
  * Email list plug-in Controller
  *
- * @static
- * @package     Joomla
- * @subpackage	Contact
- * @since       1.5
+ * @package     Joomla.Plugin
+ * @subpackage  Fabrik.list.email
+ * @since       3.0
  */
+
 class FabrikControllerListemail extends JController
 {
 	/**
@@ -101,6 +101,11 @@ class FabrikControllerListemail extends JController
 		$listModel->setId($input->getInt('id'));
 		$model->setParams($listModel->getParams(), $input->getInt('renderOrder'));
 		$model->listModel = $listModel;
+		/*
+		 * $$$ hugh - for some reason have to do this here, if we don't, it'll
+		 * blow up when it runs later on from within the list model itself.
+		 */
+		$formModel = $listModel->getFormModel();
 		$model->doEmail();
 	}
 

@@ -17,9 +17,9 @@ require_once 'fabcontrollerform.php';
 /**
  * Element controller class.
  *
- * @package		Joomla.Administrator
- * @subpackage	Fabrik
- * @since		3.0
+ * @package     Joomla.Administrator
+ * @subpackage  Fabrik
+ * @since       3.0
  */
 class FabrikControllerElement extends FabControllerForm
 {
@@ -33,11 +33,11 @@ class FabrikControllerElement extends FabControllerForm
 	/**
 	 * Set a URL for browser redirection.
 	 *
-	 * @param	string 		URL to redirect to.
-	 * @param	string		Message to display on redirect. Optional, defaults to value set internally by controller, if any.
-	 * @param	string		Message type. Optional, defaults to 'message'.
+	 * @param   string  $url   URL to redirect to.
+	 * @param   string  $msg   Message to display on redirect. Optional, defaults to value set internally by controller, if any.
+	 * @param   string  $type  Message type. Optional, defaults to 'message'.
+	 *
 	 * @return	JController	This object to support chaining.
-	 * @since	1.5
 	 */
 
 	public function setRedirect($url, $msg = null, $type = null)
@@ -48,8 +48,12 @@ class FabrikControllerElement extends FabControllerForm
 		// @TODO override the redirect url if confirm update is needed and task appropriate
 		if ($confirmUpdate == true)
 		{
-			$url = $app->getUserState('com_fabrik.redirect');
-			$this->redirect = $url;
+			// Odd nes where redirect url was blank - caused blank pages when editing an element
+			$testUrl = $app->getUserState('com_fabrik.redirect', '');
+			if ($testUrl !== '')
+			{
+				$url = $testUrl;
+			}
 		}
 		$this->redirect = $url;
 		if ($msg !== null)
@@ -105,7 +109,7 @@ class FabrikControllerElement extends FabControllerForm
 		$model->updateJoinedPks($oldName, $newName);
 		$db->setQuery($app->getUserState('com_fabrik.q'));
 
-		if (!$db->query())
+		if (!$db->execute())
 		{
 			JError::raiseWarning(E_WARNING, $db->stderr(true));
 			$msg = '';
@@ -154,7 +158,6 @@ class FabrikControllerElement extends FabControllerForm
 	 * Method to save a record.
 	 *
 	 * @return	boolean
-	 * @since	1.6
 	 */
 
 	public function save()
@@ -163,7 +166,7 @@ class FabrikControllerElement extends FabControllerForm
 		$app = JFactory::getApplication();
 		if (!is_null($app->getUserState('com_fabrik.redirect')))
 		{
-			$this->setRedirect($app->getUserState('com_fabrik.redirect') );
+			$this->setRedirect($app->getUserState('com_fabrik.redirect'));
 			$app->setUserState('com_fabrik.redirect', null);
 		}
 		return $ok;
@@ -189,7 +192,7 @@ class FabrikControllerElement extends FabControllerForm
 		$row = $elementModel->getElement();
 		$row->checkin();
 		$to = JRequest::getInt('redirectto');
-		$this->setRedirect('index.php?option=com_fabrik&task=element.edit&id='. $to);
+		$this->setRedirect('index.php?option=com_fabrik&task=element.edit&id=' . $to);
 	}
 
 }

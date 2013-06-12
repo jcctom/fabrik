@@ -1,29 +1,25 @@
 /** call back method when maps api is loaded*/
 function googlemapload() {
-	window.addEvent('domready', function () {
-		if (typeOf(Fabrik.googleMapRadius) === 'null') {
-			var script2 = document.createElement("script");
-			script2.type = "text/javascript";
-			script2.src = Fabrik.liveSite + 'components/com_fabrik/libs/googlemaps/distancewidget.js';
-			document.body.appendChild(script2);
-			Fabrik.googleMapRadius = true;
-		}
-		if (document.body) {
-			window.fireEvent('google.map.loaded');
-		} else {
-			console.log('no body');
-		}	
-	});
+	if (typeOf(Fabrik.googleMapRadius) === 'null') {
+		var script2 = document.createElement("script");
+		script2.type = "text/javascript";
+		script2.src = Fabrik.liveSite + 'components/com_fabrik/libs/googlemaps/distancewidget.js';
+		document.body.appendChild(script2);
+		Fabrik.googleMapRadius = true;
+	}
+	if (document.body) {
+		window.fireEvent('google.map.loaded');
+	} else {
+		console.log('no body');
+	}
 }
 
 function googleradiusloaded() {
-	window.addEvent('domready', function () {
-		if (document.body) {
-			window.fireEvent('google.radius.loaded');
-		} else {
-			console.log('no body');
-		}	
-	});	
+	if (document.body) {
+		window.fireEvent('google.radius.loaded');
+	} else {
+		console.log('no body');
+	}	
 }
 
 var FbGoogleMap = new Class({
@@ -61,20 +57,10 @@ var FbGoogleMap = new Class({
 	},
 	
 	initialize: function (element, options) {
+		this.mapMade = false;
 		this.parent(element, options);
-		this.loadScript();
 		
-		// @TODO test google object when offline $type(google) isnt working
-		if (this.options.center === 1 && this.options.rowid === 0) {
-			if (geo_position_js.init()) {
-				geo_position_js.getCurrentPosition(this.geoCenter.bind(this), this.geoCenterErr.bind(this), {
-					enableHighAccuracy: true
-				});
-			} else {
-				fconsole('Geo locaiton functionality not available');
-			}
-		}
-		window.addEvent('google.map.loaded', function () {
+		this.loadFn = function () {
 			switch (this.options.maptype) {
 			case 'G_SATELLITE_MAP':
 				this.options.maptype = google.maps.MapTypeId.SATELLITE;
@@ -92,10 +78,36 @@ var FbGoogleMap = new Class({
 				break;
 			}
 			this.makeMap();
-		}.bind(this));
-		window.addEvent('google.radius.loaded', function () {
+			
+			// @TODO test google object when offline typeOf(google) isnt working
+			if (this.options.center === 1 && this.options.rowid === 0) {
+				if (geo_position_js.init()) {
+					geo_position_js.getCurrentPosition(this.geoCenter.bind(this), this.geoCenterErr.bind(this), {
+						enableHighAccuracy: true
+					});
+				} else {
+					fconsole('Geo locaiton functionality not available');
+				}
+			}
+			
+		}.bind(this);
+		
+		this.radFn = function () {
 			this.makeRadius();
-		}.bind(this));
+		}.bind(this);
+		
+		window.addEvent('google.map.loaded', this.loadFn);
+		window.addEvent('google.radius.loaded', this.radFn);
+		
+		this.loadScript();
+	},
+	
+	/**
+	 * Called when form closed in ajax window
+	 */
+	destroy: function () {
+		window.removeEvent('google.map.loaded', this.loadFn);
+		window.removeEvent('google.radius.loaded', this.radFn);
 	},
 
 	getValue: function () {
@@ -106,14 +118,25 @@ var FbGoogleMap = new Class({
 	},
 
 	makeMap: function () {
-		if (typeOf(this.element) === 'null') {
+		if (this.mapMade === true) {
 			return;
 		}
+		this.mapMade = true;
+		
 		if (typeof(this.map) !== 'undefined') {
+			return;
+		}
+		if (typeOf(this.element) === 'null') {
 			return;
 		}
 		if (this.options.geocode || this.options.reverse_geocode) {
 			this.geocoder = new google.maps.Geocoder();
+		}
+		// Need to use this.options.element as if loading from ajax popup win in list view for some reason
+		// this.element refers to the first loaded row, which should have been removed from the dom
+		this.element = document.id(this.options.element);
+		if (typeOf(this.element) === 'null') {
+			return;
 		}
 		this.field = this.element.getElement('input.fabrikinput');
 		this.watchGeoCode();
@@ -152,13 +175,21 @@ var FbGoogleMap = new Class({
 			opts.draggable = this.options.drag;
 
 			if (this.options.latlng === true) {
-				this.element.getElement('.lat').addEvent('blur', this.updateFromLatLng.bindWithEvent(this));
-				this.element.getElement('.lng').addEvent('blur', this.updateFromLatLng.bindWithEvent(this));
+				this.element.getElement('.lat').addEvent('blur', function (e) {
+					this.updateFromLatLng(e);
+				}.bind(this));
+				this.element.getElement('.lng').addEvent('blur', function (e) {
+					this.updateFromLatLng(e);
+				}.bind(this));
 			}
 
 			if (this.options.latlng_dms === true) {
-				this.element.getElement('.latdms').addEvent('blur', this.updateFromDMS.bindWithEvent(this));
-				this.element.getElement('.lngdms').addEvent('blur', this.updateFromDMS.bindWithEvent(this));
+				this.element.getElement('.latdms').addEvent('blur', function (e) {
+					this.updateFromDMS(e);
+				}.bind(this));
+				this.element.getElement('.lngdms').addEvent('blur', function (e) {
+					this.updateFromDMS(e);
+				}.bind(this));
 			}
 
 			this.marker = new google.maps.Marker(opts);
@@ -199,7 +230,7 @@ var FbGoogleMap = new Class({
 										}
 										else if (type === 'route') {
 											if (this.options.reverse_geocode_fields.route) {
-												document.id(this.options.reverse_geocode_fields.route).value += component.long_name;
+												document.id(this.options.reverse_geocode_fields.route).value = component.long_name;
 											}
 										}
 										else if (type === 'street_address') {
@@ -290,7 +321,7 @@ var FbGoogleMap = new Class({
 		// as it'll keep firing as they drag.  We don't want to fire 'change' until the changing is finished
 		if (this.options.radius_write_element) {
 			if (!this.distanceWidget.get('active')) {
-				$(this.options.radius_write_element).fireEvent('change', new Event.Mock($(this.options.radius_write_element), 'change'));
+				document.id(this.options.radius_write_element).fireEvent('change', new Event.Mock(document.id(this.options.radius_write_element), 'change'));
 			}
 		}		
 	},
@@ -486,6 +517,9 @@ var FbGoogleMap = new Class({
 		} else {
 			address = this.element.getElement('.geocode_input').value;
 		}
+		// Strip HTML
+		var d = new Element('div').set('html', address);
+		address = d.get('text');
 		this.geocoder.geocode({'address': address}, function (results, status) {
 			if (status !== google.maps.GeocoderStatus.OK || results.length === 0) {
 				fconsole(address + " not found!");
@@ -527,15 +561,29 @@ var FbGoogleMap = new Class({
 				}.bind(this));
 			} else {
 				if (this.options.geocode_event === 'button') {
-					this.element.getElement('.geocode').addEvent('click', this.geoCode.bindWithEvent(this));
+					this.element.getElement('.geocode').addEvent('click', function (e) {
+						this.geoCode(e);
+					}.bind(this));
 				}
 			}
 		}
 		if (this.options.geocode === '1' && document.id(this.element).getElement('.geocode_input')) {
 			if (this.options.geocode_event === 'button') {
-				this.element.getElement('.geocode').addEvent('click', this.geoCode.bindWithEvent(this));
+				this.element.getElement('.geocode').addEvent('click', function (e) {
+					this.geoCode(e);
+				}.bind(this));
+				
+				// Stop enter in geocode field submitting the form.
+				this.element.getElement('.geocode_input').addEvent('keypress', function (e) {
+					if (e.key === 'enter') {
+						e.stop();
+					}
+				}.bind(this));
 			} else {
-				this.element.getElement('.geocode_input').addEvent('keyup', this.geoCode.bindWithEvent(this));
+				this.element.getElement('.geocode_input').addEvent('keyup', function (e) {
+					e.stop();
+					this.geoCode(e);
+				}.bind(this));
 			}
 		}
 	},
@@ -547,7 +595,7 @@ var FbGoogleMap = new Class({
 	cloned: function (c) {
 		var f = [];
 		this.options.geocode_fields.each(function (field) {
-			var bits = $A(field.split('_'));
+			var bits = field.split('_');
 			var i = bits.getLast();
 			if (i !== i.toInt()) {
 				return bits.join('_');
@@ -565,6 +613,9 @@ var FbGoogleMap = new Class({
 		v = v.split(':');
 		if (v.length < 2) {
 			v[1] = this.options.zoomlevel;
+		}
+		if (!this.ma) {
+			return;
 		}
 		var zoom = v[1].toInt();
 		this.map.setZoom(zoom);
@@ -586,17 +637,17 @@ var FbGoogleMap = new Class({
 		this.map.setCenter(pnt, this.map.getZoom());
 	},
 
-	geoCenter : function (p) {
+	geoCenter: function (p) {
 		var pnt = new google.maps.LatLng(p.coords.latitude, p.coords.longitude);
 		this.marker.setPosition(pnt);
 		this.map.setCenter(pnt);
 	},
 
-	geoCenterErr : function (p) {
+	geoCenterErr: function (p) {
 		fconsole('geo location error=' + p.message);
 	},
 	
-	redraw : function () {
+	redraw: function () {
 		google.maps.event.trigger(this.map, 'resize');
 		var center = new google.maps.LatLng(this.options.lat, this.options.lon);
 		this.map.setCenter(center);
@@ -617,7 +668,9 @@ var FbGoogleMap = new Class({
 			var center = new google.maps.LatLng(this.options.lat, this.options.lon);
 			this.map.setCenter(center);
 			this.map.setZoom(this.map.getZoom());
-			this.options.tab_dt.removeEvent('click', this.doTabBound);
+			this.options.tab_dt.removeEvent('click', function (e) {
+				this.doTab(e);
+			}.bind(this));
 		}.bind(this)).delay(500);
 	},
     
@@ -630,8 +683,9 @@ var FbGoogleMap = new Class({
 				if (this.options.tab_dd.style.getPropertyValue('display') === 'none') {
 					this.options.tab_dt = tab_dl.getElementById('group' + this.groupid + '_tab');
 					if (this.options.tab_dt) {
-						this.doTabBound = this.doTab.bindWithEvent(this);
-						this.options.tab_dt.addEvent('click', this.doTabBound);
+						this.options.tab_dt.addEvent('click', function (e) {
+							this.doTab(e);
+						}.bind(this));
 					}
 				}
 			}

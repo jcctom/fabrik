@@ -23,7 +23,7 @@ JFormHelper::loadFieldClass('list');
  *
  * @package     Joomla
  * @subpackage  Form
- * @since		1.6
+ * @since       1.6
  */
 
 class JFormFieldElement extends JFormFieldList
@@ -38,7 +38,7 @@ class JFormFieldElement extends JFormFieldList
 	/**
 	 * Method to get the field options.
 	 *
-	 * @return  array  The field option objects.
+	 * @return  array	The field option objects.
 	 */
 
 	protected function getOptions()
@@ -48,9 +48,9 @@ class JFormFieldElement extends JFormFieldList
 	}
 
 	/**
-	 * Get the input
+	 * Method to get the field input markup.
 	 *
-	 * @return  string The field input markup
+	 * @return  string	The field input markup.
 	 */
 
 	protected function getInput()
@@ -72,19 +72,20 @@ class JFormFieldElement extends JFormFieldList
 		$published = (int) $this->element['published'];
 		$showintable = (int) $this->element['showintable'];
 		$highlightpk = (bool) JArrayHelper::getValue($this->element, 'highlightpk', false);
-
+		$mode = (string) $this->element['mode'];
 		if ($include_calculations != 1)
 		{
 			$include_calculations = 0;
 		}
-
-		// $$$ hugh - don't know what's going on here, except that this method is getting called twice for every element
-		// but first time round, $this->value is not set, so if we cache it, setting loses it's value.
-		//if (!array_key_exists($this->id, $fabrikelements)) {
+		/*
+		 * $$$ hugh - don't know what's going on here, except that this method is getting called twice for every element
+		 * but first time round, $this->value is not set, so if we cache it, setting loses it's value.
+		 * if (!array_key_exists($this->id, $fabrikelements)) {
+		 */
 		$opts = new stdClass;
 		if ($this->form->repeat)
 		{
-			//in repeat fieldset/group
+			// In repeat fieldset/group
 			$conn = $this->element['connection'] . '-' . $this->form->repeatCounter;
 			$opts->table = 'jform_' . $table . '-' . $this->form->repeatCounter;
 		}
@@ -110,10 +111,32 @@ class JFormFieldElement extends JFormFieldList
 		$script = implode("\n", $script);
 		$fabrikelements[$this->id] = true;
 		FabrikHelperHTML::script('administrator/components/com_fabrik/models/fields/element.js', $script);
-		//}
-		$return = parent::getInput();
-		$return .= '<img style="margin-left:10px;display:none" id="' . $this->id
-			. '_loader" src="components/com_fabrik/images/ajax-loader.gif" alt="' . JText::_('COM_FABRIK_LOADING') . '" />';
+
+		if ($mode === 'gui')
+		{
+			$return = $this->gui();
+		}
+		else
+		{
+			$return = parent::getInput();
+			$return .= '<img style="margin-left:10px;display:none" id="' . $this->id
+				. '_loader" src="components/com_fabrik/images/ajax-loader.gif" alt="' . JText::_('COM_FABRIK_LOADING') . '" />';
+		}
 		return $return;
+	}
+
+	/**
+	 * Build GUI for adding in elements
+	 *
+	 * @return string
+	 */
+
+	private function gui()
+	{
+		$str = array();
+		$str[] = '<textarea cols="20" row="3" id="' . $this->id . '" name="' . $this->name . '">' . $this->value . '</textarea>';
+		$str[] = '<button class="button btn">Add</button>';
+		$str[] = '<select class="elements"></select>';
+		return implode("\n", $str);
 	}
 }

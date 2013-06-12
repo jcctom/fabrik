@@ -26,7 +26,7 @@ define("FU_DOWNLOAD_SCRIPT_BOTH", '3');
  * @since       3.0
  */
 
-class plgFabrik_ElementFileupload extends plgFabrik_Element
+class PlgFabrik_ElementFileupload extends PlgFabrik_Element
 {
 
 	/**
@@ -229,9 +229,9 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 	/**
 	 * Returns javascript which creates an instance of the class defined in formJavascriptClass()
 	 *
-	 * @param   int  $repeatCounter  repeat group counter
+	 * @param   int  $repeatCounter  Repeat group counter
 	 *
-	 * @return  string
+	 * @return  array
 	 */
 
 	public function elementJavascript($repeatCounter)
@@ -382,7 +382,6 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 		$opts->winHeight = (int) $params->get('win_height', 400);
 		$opts->elementShortName = $element->name;
 		$opts->listName = $this->getListModel()->getTable()->db_table_name;
-		$opts = json_encode($opts);
 		JText::script('PLG_ELEMENT_FILEUPLOAD_MAX_UPLOAD_REACHED');
 		JText::script('PLG_ELEMENT_FILEUPLOAD_DRAG_FILES_HERE');
 		JText::script('PLG_ELEMENT_FILEUPLOAD_UPLOAD_ALL_FILES');
@@ -391,7 +390,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 		JText::script('PLG_ELEMENT_FILEUPLOAD_PREVIEW');
 		JText::script('PLG_ELEMENT_FILEUPLOAD_CONFIRM_SOFT_DELETE');
 		JText::script('PLG_ELEMENT_FILEUPLOAD_CONFIRM_HARD_DELETE');
-		return "new FbFileUpload('$id', $opts)";
+		return array('FbFileUpload', $id, $opts);
 	}
 
 	/**
@@ -608,7 +607,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 				if (!$canDownload)
 				{
 					$img = $params->get('fu_download_noaccess_image');
-					$noImg = ($img == '' || !JFile::exists('media/com_fabrik/images/' . $img));
+					$noImg = ($img == '' || !JFile::exists(JPATH_ROOT . '/media/com_fabrik/images/' . $img));
 					$aClass = $noImg ? 'class="btn button"' : '';
 					$a = $params->get('fu_download_noaccess_url') == '' ? ''
 						: '<a href="' . $params->get('fu_download_noaccess_url') . '" ' . $aClass . '>';
@@ -649,7 +648,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 				}
 			}
 			$downloadImg = $params->get('fu_download_access_image');
-			if ($downloadImg !== '' && JFile::exists('media/com_fabrik/images/' . $downloadImg))
+			if ($downloadImg !== '' && JFile::exists(JPATH_ROOT . '/media/com_fabrik/images/' . $downloadImg))
 			{
 				$aClass = '';
 				$title = '<img src="' . COM_FABRIK_LIVESITE . 'media/com_fabrik/images/' . $downloadImg . '" alt="' . $title . '" />';
@@ -1038,7 +1037,6 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 			{
 				return true;
 			}
-			//echo "crop data = " ;print_r( ($cropData));exit;
 			$ids = array_values($ids);
 			$saveParams = array();
 			$files = array_keys($crop);
@@ -1471,7 +1469,6 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 				$file = $input->files->get($name, array(), 'array');
 				if ($groupModel->canRepeat())
 				{
-					// return JArrayHelper::getValue($file['name'], $repeatCounter, '') == '' ? true : false;
 					return $file[$repeatCounter]['name'] == '' ? true : false;
 				}
 			}
@@ -2109,6 +2106,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 
 		$o = new stdClass;
 		$this->setId($input->getInt('element_id'));
+		$this->loadMeForAjax();
 		$groupModel = $this->getGroup();
 
 		if (!$this->validate())
@@ -2309,7 +2307,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 								$query->delete($db->quoteName($join->table_join))
 									->where($db->quoteName('id') . ' IN (' . implode(', ', array_keys($imageRows)) . ')');
 								$db->setQuery($query);
-								$db->query();
+								$db->execute();
 							}
 						}
 						else
@@ -2435,6 +2433,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 		$app = JFactory::getApplication();
 		$input = $app->input;
 		$this->setId($input->getInt('element_id'));
+		$this->loadMeForAjax();
 		$this->getElement();
 		$params = $this->getParams();
 		$url = $input->server->get('HTTP_REFERER', '', 'string');
@@ -2593,6 +2592,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 		if (empty($val))
 		{
 			$formModel = $this->getFormModel();
+			$groupModel = $this->getGroupModel();
 			$isjoin = $groupModel->isJoin();
 			$origData = $formModel->getOrigData();
 			$groupModel = $this->getGroup();
@@ -2650,7 +2650,7 @@ class plgFabrik_ElementFileupload extends plgFabrik_Element
 		{
 			$query->delete($db->quoteName($join->table_join))->where($db->quoteName('id') . ' = ' . $input->getInt('recordid'));
 			$db->setQuery($query);
-			$db->query();
+			$db->execute();
 		}
 	}
 

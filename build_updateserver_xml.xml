@@ -11,6 +11,7 @@
 	</target>
 	
 	<target name="updater.makefile">
+		<echo message=" updater.makefile ${update_source}plg_${folder}_${plugin}.xml" />
 		<if>
 			<available file="${update_source}plg_${folder}_${plugin}.xml"/>
 				<then>
@@ -196,6 +197,20 @@
 				</for>
 			</sequential>
 		</for>
+		
+		<!-- TODO: add component/package and modules/J plugins
+		Update the entries so that only the main packages are sticky -->
+		
+		<sql
+			driver="${sql.driver}"
+			url="${sql.url}"
+			userid="${sql.user}"
+			password="${sql.password}"
+			expandProperties="true"
+			print="yes" >
+
+		</sql>
+			
 	</target>
 	
 	

@@ -51,11 +51,11 @@ class FabrikViewListBase extends JView
 		$frameworkJsFiles = FabrikHelperHTML::framework();
 		$src = $model->getPluginJsClasses($frameworkJsFiles);
 		array_unshift($src, 'media/com_fabrik/js/listfilter.js');
+		array_unshift($src, 'media/com_fabrik/js/list-plugin.js');
 		array_unshift($src, 'media/com_fabrik/js/list.js');
 		array_unshift($src, 'media/com_fabrik/js/advanced-search.js');
 
 		$model->getCustomJsAction($src);
-		//$src[] = 'media/com_fabrik/js/encoder.js';
 
 		$tmpl = $this->get('tmpl');
 		$this->tmpl = $tmpl;
@@ -76,7 +76,16 @@ class FabrikViewListBase extends JView
 
 		$this->_row = new stdClass;
 		$script = array();
-		$script[] = "head.ready(function() {";
+
+		// 3.0 only attempt to allow js to be run when list loaded in ajax window. (head.ready never fired in ajax load)
+		if ($input->getInt('ajax') === 1)
+		{
+			$script[] = 'head.js([], function () {';
+		}
+		else
+		{
+			$script[] = "head.ready(function() {";
+		}
 
 		$params = $model->getParams();
 		$opts = new stdClass;
@@ -103,6 +112,7 @@ class FabrikViewListBase extends JView
 		$opts->canView = $model->canView() ? "1" : "0";
 		$opts->page = JRoute::_('index.php');
 		$opts->isGrouped = $this->isGrouped;
+		$opts->j3 = FabrikWorker::j3();
 		$opts->singleOrdering = (bool) $model->singleOrdering();
 
 		$formEls = array();
@@ -114,7 +124,7 @@ class FabrikViewListBase extends JView
 			$formEls[] = $oo;
 
 		}
-		$opts->formels = $formEls;//$elementsNotInTable;
+		$opts->formels = $formEls;
 		$opts->fabrik_show_in_list = $input->get('fabrik_show_in_list', array(), 'array');
 		$opts->actionMethod = $model->actionMethod();
 		$opts->floatPos = $params->get('floatPos');
@@ -163,6 +173,7 @@ class FabrikViewListBase extends JView
 		$opts->groupByOpts->isGrouped = (bool) $this->isGrouped;
 		$opts->groupByOpts->collapseOthers = (bool) $params->get('group_by_collapse_others', false);
 		$opts->groupByOpts->startCollapsed = (bool) $params->get('group_by_start_collapsed', false);
+		$opts->groupByOpts->bootstrap = FabrikWorker::j3();
 
 		// If table data starts as empty then we need the html from the row
 		// template otherwise we can't add a row to the table
@@ -214,10 +225,10 @@ class FabrikViewListBase extends JView
 		JText::script('COM_FABRIK_LIST_SHORTCUTS_DELETE');
 		JText::script('COM_FABRIK_LIST_SHORTCUTS_FILTER');
 
-		$script[] = "var list = new FbList('$listid',";
-		$script[] = $opts;
-		$script[] = ");";
-		$script[] = "Fabrik.addBlock('list_{$listref}', list);";
+		$script[] = "\tvar list = new FbList('$listid',";
+		$script[] = "\t" . $opts;
+		$script[] = "\t);";
+		$script[] = "\tFabrik.addBlock('list_{$listref}', list);";
 
 		// Add in plugin objects
 		$params = $model->getParams();
@@ -230,7 +241,7 @@ class FabrikViewListBase extends JView
 		if (!empty($aObjs))
 		{
 			$script[] = "list.addPlugins([\n";
-			$script[] = "  " . implode(",\n  ", $aObjs);
+			$script[] = "\t" . implode(",\n  ", $aObjs);
 			$script[] = "]);";
 		}
 		// @since 3.0 inserts content before the start of the list render (currently on f3 tmpl only)
@@ -391,6 +402,7 @@ class FabrikViewListBase extends JView
 		$this->fabrik_userid = $user->get('id');
 		$this->canDelete = $model->deletePossible() ? true : false;
 		$this->limitLength = $model->limitLength;
+		$this->ajax = $model->isAjax();
 
 		// 3.0 observed in list.js & html moved into fabrik_actions rollover
 		$canPdf = FabrikWorker::canPdf();
@@ -407,7 +419,7 @@ class FabrikViewListBase extends JView
 		{
 			if ($params->get('show-table-add', 1))
 			{
-				$this->addRecordLink = $this->get('AddRecordLink');
+				$this->addRecordLink = $model->getAddRecordLink();
 			}
 			else
 			{
@@ -428,7 +440,7 @@ class FabrikViewListBase extends JView
 		if ($app->isAdmin())
 		{
 			// Admin always uses com_fabrik option
-			$this->pdfLink = JRoute::_('index.php?option=com_fabrik&task=list.view&listid=' . $item->id .'&format=pdf&tmpl=component');
+			$this->pdfLink = JRoute::_('index.php?option=com_fabrik&task=list.view&listid=' . $item->id . '&format=pdf&tmpl=component');
 		}
 		else
 		{
@@ -441,7 +453,7 @@ class FabrikViewListBase extends JView
 			$this->pdfLink = JRoute::_($pdfLink);
 		}
 
-		list($this->headings, $groupHeadings, $this->headingClass, $this->cellClass) = $this->get('Headings');
+		list($this->headings, $groupHeadings, $this->headingClass, $this->cellClass) = $model->getHeadings();
 
 		$this->groupByHeadings = $this->get('GroupByHeadings');
 		$this->filter_action = $this->get('FilterAction');
@@ -457,10 +469,10 @@ class FabrikViewListBase extends JView
 		$this->emptyDataMessage = $this->get('EmptyDataMsg');
 		$this->groupheadings = $groupHeadings;
 		$this->calculations = $this->_getCalculations($this->headings, $model->actionMethod());
-		$this->isGrouped = !($this->get('groupBy') == '');
+		$this->isGrouped = !($model->getGroupBy() == '');
 		$this->colCount = count($this->headings);
 
-		$this->hasButtons = $this->get('hasButtons');
+		$this->hasButtons = $model->getHasButtons();
 		$this->grouptemplates = $model->groupTemplates;
 
 		$this->params = $params;
@@ -481,8 +493,8 @@ class FabrikViewListBase extends JView
 	 * Set page title
 	 *
 	 * @param   object  $w        Fabrikworker
-	 * @param   object  &$params  list params
-	 * @param   object  $model    list model
+	 * @param   object  &$params  List params
+	 * @param   object  $model    List model
 	 *
 	 * @return  void
 	 */
@@ -494,13 +506,15 @@ class FabrikViewListBase extends JView
 		$document = JFactory::getDocument();
 		$menus = $app->getMenu();
 		$menu = $menus->getActive();
-		/** Because the application sets a default page title, we need to get it
+
+		/**
+		 * Because the application sets a default page title, we need to get it
 		 * right from the menu item itself
-		 *if there is a menu item available AND the form is not rendered in a content plugin or module
+		 * if there is a menu item available AND the form is not rendered in a content plugin or module
 		 */
 		if (is_object($menu) && !$this->isMambot)
 		{
-			$menu_params = new JRegistry( (string) $menu->params);
+			$menu_params = new JRegistry((string) $menu->params);
 			$params->set('page_title', $menu_params->get('page_title', $menu->title));
 			$params->set('show_page_title', $menu_params->get('show_page_title', 0));
 		}
@@ -509,7 +523,7 @@ class FabrikViewListBase extends JView
 			$params->set('show_page_title', $input->getInt('show_page_title', 0));
 			$params->set('page_title', $input->get('title', '', 'string'));
 		}
-		$params->set('show-title', JRequest::getInt('show-title', $params->get('show-title')));
+		$params->set('show-title', $input->getInt('show-title', $params->get('show-title')));
 
 		$title = $params->get('page_title');
 		if (empty($title))
@@ -535,6 +549,7 @@ class FabrikViewListBase extends JView
 		$input = $app->input;
 		$profiler = JProfiler::getInstance('Application');
 		$text = $this->loadTemplate();
+		JDEBUG ? $profiler->mark('template loaded') : null;
 		$model = $this->getModel();
 		$params = $model->getParams();
 		if ($params->get('process-jplugins'))
@@ -817,12 +832,12 @@ class FabrikViewListBase extends JView
 		$input = $app->input;
 		$model = $this->getModel();
 		$id = $model->getState('list.id');
-		$this->tmpl = $this->get('tmpl');
+		$this->tmpl = $model->getTmpl();
 		$model->setRenderContext($id);
 		$this->listref = $model->getRenderContext();
 
 		// Advanced search script loaded in list view - avoids timing issues with ie loading the ajax content and script
-		$this->rows = $this->get('advancedSearchRows');
+		$this->rows = $model->getAdvancedSearchRows();
 		$action = $input->server->get('HTTP_REFERER', 'index.php?option=com_' . $package, 'string');
 		$this->action = $action;
 		$this->listid = $id;

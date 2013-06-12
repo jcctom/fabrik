@@ -19,7 +19,7 @@ defined('_JEXEC') or die();
  * @since       3.0
  */
 
-class plgFabrik_ElementDate extends plgFabrik_Element
+class PlgFabrik_ElementDate extends PlgFabrik_Element
 {
 
 	/**
@@ -266,6 +266,11 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 			// If we are coming back from a validation then we don't want to re-offset the date
 			if ($input->get('Submit', '') == '' || $params->get('date_defaulttotoday', 0))
 			{
+				// If new record and element not editable - dont prefill with todays date: http://fabrikar.com/forums/index.php?threads/date-field-set-to-today-after-validation-failed.34078/
+				if (!$this->isEditable() && $input->getInt('rowid') == 0)
+				{
+					return '';
+				}
 				// $$$ rob - date is always stored with time now, so always apply tz unless store_as_local set
 				// or if we are defaulting to today
 				$showLocale = ($params->get('date_defaulttotoday', 0) && $input->getInt('rowid') == 0 || $params->get('date_alwaystoday', false));
@@ -677,9 +682,9 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 	/**
 	 * Returns javascript which creates an instance of the class defined in formJavascriptClass()
 	 *
-	 * @param   int  $repeatCounter  repeat group counter
+	 * @param   int  $repeatCounter  Repeat group counter
 	 *
-	 * @return  string
+	 * @return  array
 	 */
 
 	public function elementJavascript($repeatCounter)
@@ -692,7 +697,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 		$opts->defaultVal = $this->offsetDate;
 		$opts->showtime = (!$element->hidden && $params->get('date_showtime', 0)) ? true : false;
 		$opts->timelabel = JText::_('time');
-		$opts->typing = $params->get('date_allow_typing_in_field', true);
+		$opts->typing = (bool) $params->get('date_allow_typing_in_field', true);
 		$opts->timedisplay = $params->get('date_timedisplay', 1);
 		$validations = $this->getValidations();
 		$opts->validations = empty($validations) ? false : true;
@@ -701,8 +706,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 		// For reuse if element is duplicated in repeat group
 		$opts->calendarSetup = $this->_CalendarJSOpts($id);
 		$opts->advanced = $params->get('date_advanced', '0') == '1';
-		$opts = json_encode($opts);
-		return "new FbDateTime('$id', $opts)";
+		return array('FbDateTime', $id, $opts);
 	}
 
 	/**
@@ -718,15 +722,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 		{
 			return 'BLOB';
 		}
-		$groupModel = $this->getGroup();
-		if (is_object($groupModel) && !$groupModel->isJoin() && $groupModel->canRepeat())
-		{
-			return "VARCHAR(255)";
-		}
-		else
-		{
-			return "DATETIME";
-		}
+		return "DATETIME";
 	}
 
 	/**
@@ -762,16 +758,20 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 	public function setValuesFromEncryt(&$post, $key, $data)
 	{
 		$date = $data[0];
-
-		// Seems that if sumbitting encrytped values we need to re-offset the timezone http://fabrikar.com/forums/showthread.php?t=31517
-		$timeZone = new DateTimeZone(JFactory::getConfig()->get('offset'));
 		$date = JFactory::getDate($date);
-		$hours = $timeZone->getOffset($date) / (60 * 60);
-		$date->modify('+' . $hours . ' hour');
+		$params = $this->getParams();
+		$storeAsLocal = (int) $params->get('date_store_as_local', 0);
+		if (!$storeAsLocal)
+		{
+			// Seems that if sumbitting encrytped values we need to re-offset the timezone http://fabrikar.com/forums/showthread.php?t=31517
+			$timeZone = new DateTimeZone(JFactory::getConfig()->get('offset'));
+			$hours = $timeZone->getOffset($date) / (60 * 60);
+			$date->modify('+' . $hours . ' hour');
+		}
 		$date = $date->toSql();
 
 		// Put in the correct format
-		list($date, $time) = explode(' ', $date);
+		list($dateOnly, $time) = explode(' ', $date);
 		$data = array('date' => $date, 'time' => $time);
 		parent::setValuesFromEncryt($post, $key, $data);
 	}
@@ -830,9 +830,9 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 	/**
 	 * Determines the value for the element in the form view
 	 *
-	 * @param   array  $data           form data
-	 * @param   int    $repeatCounter  when repeating joinded groups we need to know what part of the array to access
-	 * @param   array  $opts           options
+	 * @param   array  $data           Form data
+	 * @param   int    $repeatCounter  When repeating joinded groups we need to know what part of the array to access
+	 * @param   array  $opts           Options
 	 *
 	 * @return  string	value
 	 */
@@ -1284,7 +1284,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 		$htmlid = $this->getHTMLId();
 		$fType = $this->getFilterType();
 		$timeZone = new DateTimeZone(JFactory::getConfig()->get('offset'));
-		if (in_array($fType, array('dropdown')))
+		if (in_array($fType, array('dropdown', 'checkbox', 'multiselect')))
 		{
 			$rows = $this->filterValueList($normal);
 		}
@@ -1292,6 +1292,9 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 		$return = array();
 		switch ($fType)
 		{
+			case 'checkbox':
+				$return[] = $this->checkboxFilter($rows, $default, $v);
+				break;
 			case 'range':
 			case 'range-hidden':
 				FabrikHelperHTML::loadcalendar();
@@ -1310,8 +1313,8 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 				$return[] = '<div class="fabrik_filter_container">';
 				if ($fType === 'range-hidden')
 				{
-					$return[] = '<input type="hidden" name="' . $v. '[0]' . '" class="inputbox fabrik_filter" value="' . $default[0] . '" id="' . $htmlid . '-0" />';
-					$return[] = '<input type="hidden" name="' . $v. '[1]' . '" class="inputbox fabrik_filter" value="' . $default[1] . '" id="' . $htmlid . '-1" />';
+					$return[] = '<input type="hidden" name="' . $v . '[0]' . '" class="inputbox fabrik_filter" value="' . $default[0] . '" id="' . $htmlid . '-0" />';
+					$return[] = '<input type="hidden" name="' . $v . '[1]' . '" class="inputbox fabrik_filter" value="' . $default[1] . '" id="' . $htmlid . '-1" />';
 					$return[] = '</div>';
 				}
 				else
@@ -1324,10 +1327,17 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 				}
 				break;
 
-			case "dropdown": /**
+			case 'dropdown':
+			case 'multiselect':
+							/**
 							  *  cant do the format in the MySQL query as its not the same formatting
 							  *  e.g. M in mysql is month and J's date code its minute
 							  */
+
+				$max = count($rows) < 7 ? count($rows) : 7;
+				$size = $element->filter_type === 'multiselect' ? 'multiple="multiple" size="' . $max . '"' : 'size="1"';
+				$v = $fType === 'multiselect' ? $v . '[]' : $v;
+
 				jimport('joomla.utilities.date');
 				$ddData = array();
 				foreach ($rows as $k => $o)
@@ -1350,7 +1360,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 					}
 				}
 				array_unshift($ddData, JHTML::_('select.option', '', $this->filterSelectLabel()));
-				$return[] = JHTML::_('select.genericlist', $ddData, $v, 'class="inputbox fabrik_filter" size="1" maxlength="19"', 'value', 'text',
+				$return[] = JHTML::_('select.genericlist', $ddData, $v, 'class="inputbox fabrik_filter" ' . $size . ' maxlength="19"', 'value', 'text',
 					$default, $htmlid . '0');
 				break;
 			default:
@@ -1399,7 +1409,7 @@ class plgFabrik_ElementDate extends plgFabrik_Element
 				{
 					$autoId = '.advanced-search-list .autocomplete-trigger';
 				}
-				FabrikHelperHTML::autoComplete($autoId, $this->getElement()->id, 'date');
+				FabrikHelperHTML::autoComplete($autoId, $this->getElement()->id, $this->getFormModel()->getId(), 'date');
 				break;
 		}
 		if ($normal)

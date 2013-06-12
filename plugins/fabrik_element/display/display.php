@@ -16,9 +16,10 @@ defined('_JEXEC') or die();
  *
  * @package     Joomla.Plugin
  * @subpackage  Fabrik.element.display
+ * @since       3.0
  */
 
-class plgFabrik_ElementDisplay extends plgFabrik_Element
+class PlgFabrik_ElementDisplay extends PlgFabrik_Element
 {
 
 	/**
@@ -33,7 +34,7 @@ class plgFabrik_ElementDisplay extends plgFabrik_Element
 	 *
 	 * @var bol
 	 */
-	var $_recordInDatabase = false;
+	protected $recordInDatabase = false;
 
 	/**
 	 * Set/get if element should record its data in the dabase
@@ -45,7 +46,7 @@ class plgFabrik_ElementDisplay extends plgFabrik_Element
 
 	function setIsRecordedInDatabase()
 	{
-		$this->_recordInDatabase = false;
+		$this->recordInDatabase = false;
 	}
 
 	/**
@@ -106,8 +107,8 @@ class plgFabrik_ElementDisplay extends plgFabrik_Element
 	 * Unlike other elements where readonly effects what is displayed, the display element is always
 	 * read only, so get the default value.
 	 *
-	 * @param   array  $data   Form data
-	 * @param   array  $opts   Options
+	 * @param   array  $data  Form data
+	 * @param   array  $opts  Options
 	 *
 	 * @since  3.0.7
 	 *
@@ -148,6 +149,21 @@ class plgFabrik_ElementDisplay extends plgFabrik_Element
 			FabrikWorker::getPluginManager()->runPlugins('onGetElementDefault', $formModel, 'form', $this);
 		}
 		return $value;
+	}
+
+	/**
+	 * Returns javascript which creates an instance of the class defined in formJavascriptClass()
+	 *
+	 * @param   int  $repeatCounter  Repeat group counter
+	 *
+	 * @return  array
+	 */
+
+	public function elementJavascript($repeatCounter)
+	{
+		$id = $this->getHTMLId($repeatCounter);
+		$opts = $this->getElementJSOptions($repeatCounter);
+		return array('FbDisplay', $id, $opts);
 	}
 
 }

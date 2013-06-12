@@ -63,6 +63,51 @@ var FbGoogleMapViz = new Class({
 			this.timer = this.update.periodical(this.options.refresh_rate, this);
 		}
 		
+		head.ready(function () {
+			if (typeof(Slimbox) !== 'undefined') {
+				Slimbox.scanPage();
+			} else if (typeof(Mediabox) !== 'undefined') {
+				Mediabox.scanPage();
+			}
+
+			// Clear filter list
+			this.container = document.id(this.options.container);
+			if (typeOf(this.container) !== 'null') {
+				var form = this.container.getElement('form[name=filter]');
+				var c = this.container.getElement('.clearFilters');
+				if (c) {
+					c.addEvent('click', function (e) {
+						this.container.getElements('.fabrik_filter').each(function (f) {
+							f.value = '';
+						});
+						e.stop();
+						form.submit();
+					}.bind(this));
+				}
+				
+				// Watch filter submit
+				var submit = this.container.getElements('input.fabrik_filter_submit');
+				if (typeOf(submit) !== 'null') {
+					submit.addEvent('click', function (e) {
+						var res = Fabrik.fireEvent('list.filter', [this]).eventResults;
+						if (typeOf(res) === 'null' || res.length === 0 || !res.contains(false)) {
+							form.submit();
+						} else {
+							e.stop();
+						}
+					});
+				}
+				
+			}
+		}.bind(this));
+		
+		Fabrik.loadGoogleMap(true, function () {
+			this.iniGMap();
+		}.bind(this));
+		
+	},
+	
+	iniGMap: function () {
 		switch (this.options.maptype) {
 		case 'G_NORMAL_MAP':
 		/* falls through */
@@ -111,10 +156,18 @@ var FbGoogleMapViz = new Class({
 			
 			this.addIcons();
 			this.addOverlays();
-			
-			google.maps.event.addListener(this.map, "click", this.setCookies.bindWithEvent(this));
-			google.maps.event.addListener(this.map, "moveend", this.setCookies.bindWithEvent(this));
-			google.maps.event.addListener(this.map, "zoomend", this.setCookies.bindWithEvent(this));
+
+			google.maps.event.addListener(this.map, "click", function (e) {
+				this.setCookies(e);
+			}.bind(this));
+
+			google.maps.event.addListener(this.map, "moveend", function (e) {
+				this.setCookies(e);
+			}.bind(this));
+
+			google.maps.event.addListener(this.map, "zoomend", function (e) {
+				this.setCookies(e);
+			}.bind(this));
 
 			if (this.options.use_cookies) {
 				// $$$ jazzbass - get previous stored location
@@ -133,27 +186,6 @@ var FbGoogleMapViz = new Class({
 			}
 			//end
 			
-			if (typeof(Slimbox) !== 'undefined') {
-				Slimbox.scanPage();
-			} else if (typeof(Mediabox) !== 'undefined') {
-				Mediabox.scanPage();
-			}
-
-			//clear filter list
-			this.container =  document.id(this.options.container);
-			if (typeOf(this.container) !== 'null') {
-				var c = this.container.getElement('.clearFilters');
-				if (c) {
-					c.addEvent('click', function (e) {
-						this.container.getElements('.fabrik_filter').each(function (f) {
-							f.value = '';
-						});
-						e.stop();
-						this.container.getElement('form[name=filter]').submit();
-					}.bind(this));
-				}
-			}
-
 			this.setPolyLines();
 		}.bind(this));
 	},
@@ -228,7 +260,7 @@ var FbGoogleMapViz = new Class({
 			var i = 0;
 			for (i = 1; i <= 5; ++i) {
 				styles.push({
-					'url': Fabrik.liveSite + "/components/com_fabrik/libs/googlemaps/markerclustererplus/images/m" + i + ".png",
+					'url': Fabrik.liveSite + "components/com_fabrik/libs/googlemaps/markerclustererplus/images/m" + i + ".png",
 					'height': sizes[i - 1],
 					'width': sizes[i - 1]
 				});
@@ -388,7 +420,9 @@ var FbGoogleMapViz = new Class({
 			this.options.overlay_urls.each(function (overlay_url, k) {
 				this.options.overlays[k] = new google.maps.KmlLayer(overlay_url);
 				this.options.overlays[k].setMap(this.map);
-				this.options.overlay_events[k] = this.toggleOverlay.bindWithEvent(this);
+				this.options.overlay_events[k] = function (e) {
+					this.toggleOverlay(e);
+				}.bind(this);
 				if (typeOf(document.id('overlay_chbox_' + k)) !== 'null') {
 					document.id('overlay_chbox_' + k).addEvent('click', this.options.overlay_events[k]);
 				}
@@ -404,20 +438,40 @@ var FbGoogleMapViz = new Class({
 	},
 	
 	renderGroupedSideBar: function () {
+		var a, linkText, c, label = '';
 		if (!this.options.use_groups) {
 			return;
 		}
 		this.grouped = {};
-		var c = document.id(this.options.container).getElement('.grouped_sidebar');
+		c = document.id(this.options.container).getElement('.grouped_sidebar');
 		if (typeOf(c) === 'null') {
 			return;
 		}
+		c.empty();
+		// Iterate over the map icons to find the group by info
 		this.options.icons.each(function (i) {
 			if (typeOf(this.grouped[i.groupkey]) === 'null') {
+				
+				linkText = i.groupkey;
+				
+				var lookup = i.groupkey.replace(/[^0-9a-zA-Z_]/g, '');
+				
+				// Allow for images as group by text, (Can't have nested <a>'s so parse the label for content inside possible <a>)
+				if (typeOf(this.options.groupTemplates[i.listid]) !== 'null') {
+					label = this.options.groupTemplates[i.listid][lookup];
+				}
+				var d = new Element('div').set('html', label);
+				if (d.getElement('a')) {
+					d = d.getElement('a');
+				}
+				linkText = d.get('html');
+					
 				this.grouped[i.groupkey] = [];
 				var k = i.listid + i.groupkey.replace(/[^0-9a-zA-Z_]/g, '');
 				k += ' ' + i.groupClass;
-				var h = new Element('div', {'class': 'groupedContainer' + k}).adopt(new Element('a', {
+				
+				// Build the group by toggle link
+				var a = new Element('a', {
 					'events': {
 						'click': function (e) {
 							var cname = e.target.className.replace('groupedLink', 'groupedContent');
@@ -428,27 +482,54 @@ var FbGoogleMapViz = new Class({
 					},
 					'href': '#',
 					'class': 'groupedLink' + k
-				}).set('text', i.groupkey));
-				h.injectInside(c);
+				}).set('html', linkText);
+				
+				// Store the group key for later use in the toggle co
+				a.store('data-groupkey', i.groupkey);
+				var h = new Element('div', {'class': 'groupedContainer' + k}).adopt(a);
+				h.inject(c);
 			}
 			this.grouped[i.groupkey].push(i);
 		}.bind(this));
 		
-		c.addEvent('click:relay(a)', function (event, clicked) {
-			event.preventDefault(); //don't follow the link
-			this.infoWindow.close();
-			document.id(this.options.container).getElement('.grouped_sidebar').getElements('a').removeClass('active');
-			clicked.addClass('active');
-			var l = clicked.get('text');
-			this.toggledGroup = l;
-			this.toggleGrouped();
-		}.bind(this));
+		if (!this.watchingSideBar) {
+			c.addEvent('click:relay(a)', function (event, clicked) {
+				
+				// Don't follow the link
+				event.preventDefault();
+				this.toggleGrouped(clicked);
+			}.bind(this));
+			
+			// Clear the grouped by icon selection
+			var clear = this.container.getElements('.clear-grouped');
+			if (typeOf(clear) !== 'null') {
+				clear.addEvent('click', function (e) {
+					e.stop();
+					this.toggleGrouped(false);
+				}.bind(this));
+			}
+			this.watchingSideBar = true;
+		}
 	},
 	
-	toggleGrouped: function ()
+	/**
+	 * Toggle grouped icons.
+	 * 
+	 * @param   mixed  clicked  False to show all, otherwise DOM node for selected group by
+	 * 
+	 * @return  void
+	 */
+	toggleGrouped: function (clicked)
 	{
+		this.infoWindow.close();
+		document.id(this.options.container).getElement('.grouped_sidebar').getElements('a').removeClass('active');
+		if (clicked) {
+			clicked.addClass('active');
+			this.toggledGroup = clicked.retrieve('data-groupkey');
+		}
+		
 		this.markers.each(function (marker) {
-			marker.groupkey === this.toggledGroup ? marker.setVisible(true) : marker.setVisible(false);
+			marker.groupkey === this.toggledGroup || clicked === false ? marker.setVisible(true) : marker.setVisible(false);
 			marker.setAnimation(google.maps.Animation.BOUNCE);
 			var fn = function () {
 				marker.setAnimation(null);

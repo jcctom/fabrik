@@ -30,14 +30,22 @@ class FabrikFEModelVisualization extends JModel
 
 	var $_params = null;
 
-	//@var string url for filter form
-	var $getFilterFormURL = null;
+	/**
+	 * Url for filter form
+	 *
+	 * @var string
+	 */
+	protected $getFilterFormURL = null;
 
 	public $srcBase = "plugins/fabrik_visualization/";
 
 	public $pathBase = null;
 
-	/** @var string js code to ini list filters */
+	/**
+	 * JS code to ini list filters
+	 *
+	 * @var string
+	 */
 	protected $filterJs = null;
 
 	/**
@@ -103,7 +111,7 @@ class FabrikFEModelVisualization extends JModel
 		$pluginParams = new JRegistry($this->getVisualization()->params);
 		return $pluginParams;
 	}
-	
+
 	/**
 	 * alais to getVisualization()
 	 *
@@ -111,7 +119,7 @@ class FabrikFEModelVisualization extends JModel
 	 *
 	 * @return  FabTable viz
 	 */
-	
+
 	public function getRow()
 	{
 		return $this->getVisualization();
@@ -392,6 +400,42 @@ class FabrikFEModelVisualization extends JModel
 	}
 
 	/**
+	 * Set visualiazation prefilters
+	 *
+	 * @return  void
+	 */
+	public function setPrefilters()
+	{
+		$listModels = $this->getListModels();
+		$filters = array();
+		$params = $this->getParams();
+		$prefilters = (array) $params->get('prefilters');
+		$c = 0;
+		foreach ($listModels as $listModel)
+		{
+			// Set prefilter params
+			$listParams = $listModel->getParams();
+			$prefilter = JArrayHelper::getValue($prefilters, $c);
+			$prefilter = JArrayHelper::fromObject(json_decode($prefilter));
+			$conditions = (array) $prefilter['filter-conditions'];
+			if (!empty($conditions))
+			{
+				$fields = $prefilter['filter-fields'];
+				foreach ($fields as &$f)
+				{
+					$f = FabrikString::safeColName($f);
+				}
+				$listParams->set('filter-fields', $fields);
+				$listParams->set('filter-conditions', $prefilter['filter-conditions']);
+				$listParams->set('filter-value', $prefilter['filter-value']);
+				$listParams->set('filter-access', $prefilter['filter-access']);
+				$listParams->set('filter-eval', $prefilter['filter-eval']);
+			}
+			$c ++;
+		}
+	}
+
+	/**
 	 * should be overwritten in plugin viz model
 	 *
 	 * @return  bool
@@ -431,7 +475,7 @@ class FabrikFEModelVisualization extends JModel
 	}
 
 	/**
-	 * get the js code to create instances of js table plugin classes
+	 * get the js code to create instances of js list plugin classes
 	 * needed for radius search filter
 	 *
 	 * @return  string

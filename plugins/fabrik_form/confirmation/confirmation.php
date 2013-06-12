@@ -20,7 +20,7 @@ require_once COM_FABRIK_FRONTEND . '/models/plugin-form.php';
  * @since       3.0
  */
 
-class plgFabrik_FormConfirmation extends plgFabrik_Form
+class PlgFabrik_FormConfirmation extends PlgFabrik_Form
 {
 
 	protected $runAway = false;
@@ -144,7 +144,7 @@ class plgFabrik_FormConfirmation extends plgFabrik_Form
 			foreach ($elementModels as $elementModel)
 			{
 				// $$$ rob 20/04/2012 unset the element access otherwise previously cached acl is used.
-				unset($elementModel->_access);
+				$elementModel->clearAccess();
 				$elementModel->getElement()->access = -1;
 			}
 		}
@@ -167,7 +167,7 @@ class plgFabrik_FormConfirmation extends plgFabrik_Form
 
 		// If we have already processed the form
 		$this->html = '';
-		if (JRequest::getVar('fabrik_confirmation') == 1)
+		if ($input->getInt('fabrik_confirmation') === 1)
 		{
 			$session = JFactory::getSession();
 
@@ -252,6 +252,20 @@ class plgFabrik_FormConfirmation extends plgFabrik_Form
 	public function getBottomContent_result($c)
 	{
 		return $this->html;
+	}
+
+	/**
+	 * Does the plugin use session.on
+	 *
+	 * @param   object  $params     Plugin params
+	 * @param   object  $formModel  Form model
+	 *
+	 * @return  void
+	 */
+
+	public function usesSession($params, $formModel)
+	{
+		$this->usesSession = true;
 	}
 
 }

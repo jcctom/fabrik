@@ -1,23 +1,38 @@
 .buildpath
 .project
-.settings/*
+.settings/
+.tx/
 *.txt
 *.php
 *.xml
 *.jpg
+<<<<<<< HEAD
 *.bak
 *.admintools
 *.hide
 noscriptpage.html
 favicon.ico
+=======
+.htaccess
+php.ini
+>>>>>>> fabrik25/master
 cache/*
 administrator/*
 !administrator/components/com_fabrik/
+administrator/components/com_fabrik/update/
 cache/*
 components/*
 !components/com_fabrik
+<<<<<<< HEAD
 !components/com_fabrik/*
+=======
+components/com_fabrik/js/*
+components/com_fabrik/user_ajax.php
+components/com_fabrik/xf_group_sync.php
+>>>>>>> fabrik25/master
 cli/*
+/downloads
+/downloads_debug
 images/*
 includes/*
 language/*
@@ -30,14 +45,20 @@ modules/*
 !modules/mod_fabrik_list/*
 media/*
 !media/com_fabrik/*
+media/com_fabrik/uploads/
 logs
 plugins/*
 plugins/search/*
 !plugins/search/fabrik
 plugins/system/*
+!plugins/system/fabrik/
 !plugins/fabrik_element/
+plugins/fabrik_element/mytristate/
 !plugins/fabrik_form/
+plugins/fabrik_form/php/scripts/
+plugins/fabrik_form/caneditgroup/
 !plugins/fabrik_list/
+plugins/fabrik_list/php/scripts/
 !plugins/fabrik_cron/
 !plugins/fabrik_validationrule/
 !plugins/fabrik_visualization/
@@ -53,8 +74,11 @@ t3-assets/*
 /tmp
 /transfer
 /tests
+/test
+/update
 /cache
 fabrik_build/output/
+fabrik_build/docs/
 /build_config_private.ini
 /images
 /includes
@@ -66,4 +90,8 @@ libraries/dompdf/lib/fonts/log.htm
 /docs
 /uploads
 libraries/dompdf/lib/fonts/dompdf_font_family_cache.dist.php
-
+/t3-assets
+/joomlatools-files
+/.externalToolBuilders
+custom_css.php
+custom.css

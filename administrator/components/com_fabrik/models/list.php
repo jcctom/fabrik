@@ -61,6 +61,13 @@ class FabrikModelList extends FabModelAdmin
 	protected $pluginType = 'List';
 
 	/**
+	* Database fields
+	*
+	* @var array
+	*/
+	protected $_dbFields = null;
+
+	/**
 	 * Returns a reference to the a Table object, always creating it.
 	 *
 	 * @param   string  $type    The table type to instantiate
@@ -262,6 +269,7 @@ class FabrikModelList extends FabModelAdmin
 				$aConditions[] = JHTML::_('select.option', '<=', 'LESS THAN OR EQUALS');
 				$aConditions[] = JHTML::_('select.option', 'in', 'IN');
 				$aConditions[] = JHTML::_('select.option', 'not_in', 'NOT IN');
+				$aConditions[] = JHTML::_('select.option', 'exists', 'EXISTS');
 				$aConditions[] = JHTML::_('select.option', 'earlierthisyear', JText::_('COM_FABRIK_EARLIER_THIS_YEAR'));
 				$aConditions[] = JHTML::_('select.option', 'laterthisyear', JText::_('COM_FABRIK_LATER_THIS_YEAR'));
 
@@ -418,10 +426,9 @@ class FabrikModelList extends FabModelAdmin
 			// Alow for multiline js variables ?
 			$selValue = htmlspecialchars_decode($selValue, ENT_QUOTES);
 			$selValue = json_encode($selValue);
-			if ($selFilter != '')
-			{
-				$js .= "	oAdminFilters.addFilterOption('$selJoin', '$selFilter', '$selCondition', $selValue, '$selAccess', $filerEval, '$grouped');\n";
-			}
+
+			// No longer check for empty $selFilter as EXISTS prefilter condition doesn't require element to be selected
+			$js .= "	oAdminFilters.addFilterOption('$selJoin', '$selFilter', '$selCondition', $selValue, '$selAccess', $filerEval, '$grouped');\n";
 		}
 		$js .= "
 });";
@@ -594,7 +601,8 @@ class FabrikModelList extends FabModelAdmin
 			return false;
 		}
 		$filter = new JFilterInput(null, null, 1, 1);
-		$introduction = JArrayHelper::getValue(JRequest::getVar('jform', array(), 'post', 'array', JREQUEST_ALLOWRAW), 'introduction');
+		$jform = JRequest::getVar('jform', array(), 'post', 'array', JREQUEST_ALLOWRAW);
+		$introduction = JArrayHelper::getValue($jform, 'introduction');
 
 		$row->introduction = $filter->clean($introduction);
 
@@ -810,7 +818,7 @@ class FabrikModelList extends FabModelAdmin
 			$db = $feModel->getDb();
 			$item = $feModel->getTable();
 			$db->setQuery('ALTER TABLE ' . $item->db_table_name . ' COLLATE  ' . $newCollation);
-			if (!$db->query())
+			if (!$db->execute())
 			{
 				JError::raiseNotice(500, $db->getErrorMsg());
 				return false;
@@ -834,7 +842,7 @@ class FabrikModelList extends FabModelAdmin
 		{
 			return;
 		}
-		$searchElements = json_decode($params->list_search_elements)->search_elements;
+		$searchElements = (array) json_decode($params->list_search_elements)->search_elements;
 		$elementModels = $this->getFEModel()->getElements(0, false, false);
 		foreach ($elementModels as $elementModel)
 		{
@@ -1150,9 +1158,8 @@ class FabrikModelList extends FabModelAdmin
 		$elementModel = new plgFabrik_Element($dispatcher);
 		$pluginManager = FabrikWorker::getPluginManager();
 		$user = JFactory::getUser();
+		$fbConfig = JComponentHelper::getParams('com_fabrik');
 		$elementTypes = JRequest::getVar('elementtype', array());
-		/* $fields = $fabrikDb->getTableColumns(array($tableName));
-		$fields = $fields[$tableName]; */
 		$fields = $fabrikDb->getTableColumns($tableName, false);
 		$createdate = JFactory::getDate()->toSQL();
 		$key = $this->getFEModel()->getPrimaryKeyAndExtra($tableName);
@@ -1204,7 +1211,7 @@ class FabrikModelList extends FabModelAdmin
 				}
 				else
 				{
-					// Otherwise guestimate!
+					// Otherwise set default type
 					switch ($type)
 					{
 						case "int":
@@ -1233,6 +1240,8 @@ class FabrikModelList extends FabModelAdmin
 							break;
 					}
 				}
+				// Then alter if defined in Fabrik global config
+				$plugin = $fbConfig->get($type, $plugin);
 			}
 			$element->plugin = $plugin;
 			$element->hidden = $element->label == 'id' ? '1' : '0';
@@ -1296,7 +1305,7 @@ class FabrikModelList extends FabModelAdmin
 			// Hack for user element
 			$details = array('group_id' => $element->group_id);
 			JRequest::setVar('details', $details);
-			$elementModel->onSave();
+			$elementModel->onSave(array());
 			$ordering++;
 		}
 	}
@@ -1657,7 +1666,7 @@ class FabrikModelList extends FabModelAdmin
 		$sql = 'ALTER TABLE ' . $tableName . ' ADD PRIMARY KEY (' . $fieldName . ')';
 		/* add a primary key */
 		$db->setQuery($sql);
-		if (!$db->query())
+		if (!$db->execute())
 		{
 			return JError::raiseWarning(500, $db->getErrorMsg());
 		}
@@ -1666,7 +1675,7 @@ class FabrikModelList extends FabModelAdmin
 			// Add the autoinc
 			$sql = 'ALTER TABLE ' . $tableName . ' CHANGE ' . $fieldName . ' ' . $fieldName . ' ' . $type . ' NOT NULL AUTO_INCREMENT';
 			$db->setQuery($sql);
-			if (!$db->query())
+			if (!$db->execute())
 			{
 				return JError::raiseError(500, 'add key: ' . $db->getErrorMsg());
 			}
@@ -1689,17 +1698,19 @@ class FabrikModelList extends FabModelAdmin
 		$tableName = FabrikString::safeColName($post['jform']['db_table_name']);
 		$sql = 'ALTER TABLE ' . $tableName . ' CHANGE ' . FabrikString::safeColName($aPriKey['colname']) . ' '
 			. FabrikString::safeColName($aPriKey['colname']) . ' ' . $aPriKey['type'] . ' NOT NULL';
-		/* removes the autoinc */
+
+		// Remove the autoinc
 		$db->setQuery($sql);
-		if (!$db->query())
+		if (!$db->execute())
 		{
 			JError::raiseWarning(500, $db->getErrorMsg());
 			return false;
 		}
 		$sql = 'ALTER TABLE ' . $tableName . ' DROP PRIMARY KEY';
-		/* drops the primary key */
+
+		// Drop the primary key
 		$db->setQuery($sql);
-		if (!$db->query())
+		if (!$db->execute())
 		{
 			JError::raiseWarning(500, 'alter table: ' . $db->getErrorMsg());
 			return false;
@@ -1734,13 +1745,14 @@ class FabrikModelList extends FabModelAdmin
 		}
 		$sql = 'ALTER TABLE ' . $tableName . ' CHANGE ' . FabrikString::safeColName($fieldName) . ' ' . FabrikString::safeColName($fieldName) . ' '
 			. $type . ' NOT NULL';
-		/* update primary key */
+
+		// Update primary key
 		if ($autoIncrement)
 		{
 			$sql .= " AUTO_INCREMENT";
 		}
 		$db->setQuery($sql);
-		if (!$db->query())
+		if (!$db->execute())
 		{
 			$this->setError('update key:' . $db->getErrorMsg());
 		}
@@ -1971,7 +1983,7 @@ class FabrikModelList extends FabModelAdmin
 		}
 		$query->delete()->from('#__{package}_forms')->where('id = ' . (int) $form->id);
 		$db->setQuery($query);
-		$db->query();
+		$db->execute();
 		return $form;
 	}
 
@@ -2067,7 +2079,7 @@ class FabrikModelList extends FabModelAdmin
 		$query .= ' primary key (' . $key . '))';
 		$query .= ' ENGINE = MYISAM ';
 		$db->setQuery($query);
-		$db->query();
+		$db->execute();
 
 		// Get a list of existinig ids
 		$query = $db->getQuery(true);
@@ -2410,5 +2422,60 @@ class FabrikModelList extends FabModelAdmin
 				return JError::raiseWarning(500, 'amend table: ' . $fabrikDb->getErrorMsg());
 			}
 		}
+	}
+
+	/**
+	* Gets the field names for the given table
+	* $$$ hugh - added this to backend, as I need it in some places where we have
+	* a backend list model, and until now only existed in the FE model.
+	*
+	* @param   string  $tbl       Table name
+	* @param   string  $key       Field to key return array on
+	* @param   bool    $basetype  Deprecated - not used
+	*
+	* @return  array  table fields
+	*/
+
+	public function getDBFields($tbl = null, $key = null, $basetype = false)
+	{
+		if (is_null($tbl))
+		{
+			$table = $this->getTable();
+			$tbl = $table->db_table_name;
+		}
+		if ($tbl == '')
+		{
+			return array();
+		}
+		$sig = $tbl . $key;
+		$tbl = FabrikString::safeColName($tbl);
+		if (!isset($this->_dbFields[$sig]))
+		{
+			$db = $this->getDb();
+			$tbl = FabrikString::safeColName($tbl);
+			$db->setQuery("DESCRIBE " . $tbl);
+			$this->_dbFields[$sig] = $db->loadObjectList($key);
+			if ($db->getErrorNum())
+			{
+				JError::raiseWarning(500, $db->getErrorMsg());
+				$this->_dbFields[$sig] = array();
+			}
+			/**
+			 * $$$ hugh - added BaseType, which strips (X) from things like INT(6) OR varchar(32)
+			 * Also converts it to UPPER, just to make things a little easier.
+			 */
+			foreach ($this->_dbFields[$sig] as &$row)
+			{
+				/**
+				 * Boil the type down to just the base type, so "INT(11) UNSIGNED" becomes just "INT"
+				 * I'm sure there's other cases than just UNSIGNED I need to deal with, but for now that's
+				 * what I most care about, as this stuff is being written handle being more specific about
+				 * the elements the list PK can be selected from.
+				 */
+				$row->BaseType = strtoupper(preg_replace('#(\(\d+\))$#', '', $row->Type));
+				$row->BaseType = preg_replace('#(\s+SIGNED|\s+UNSIGNED)#', '', $row->BaseType);
+			}
+		}
+		return $this->_dbFields[$sig];
 	}
 }
